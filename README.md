@@ -53,6 +53,35 @@ be validated automatically.
    pytest -m e2e
    ```
 
+## Running inside Docker
+
+A Docker image is provided to run the Selenium suite with Google Chrome in
+headless mode without installing dependencies locally.
+
+1. Build the image:
+
+   ```bash
+   docker build -t xnat-selenium-tests .
+   ```
+
+2. Execute the tests, providing the XNAT connection details via environment
+   variables. Additional Pytest arguments can be appended to the command.
+
+   ```bash
+   docker run --rm \
+     -e XNAT_BASE_URL=https://your-xnat.example \
+     -e XNAT_USERNAME=your-user \
+     -e XNAT_PASSWORD=your-password \
+     xnat-selenium-tests -m smoke
+   ```
+
+   By default the container launches `pytest`. Override the entrypoint to obtain
+   an interactive shell if you need to inspect the environment:
+
+   ```bash
+   docker run --rm -it --entrypoint /bin/bash xnat-selenium-tests
+   ```
+
 ## Project structure
 
 ```

@@ -32,14 +32,38 @@ class ExperimentsPage(BasePage):
         )
         self.wait_for_visibility(self._add_experiment_button)
 
-    def add_experiment(self, experiment: Experiment) -> None:
+    def start_experiment_creation(self) -> None:
         self.click(self._add_experiment_button)
         self.wait_for_visibility(self._experiment_label)
-        self.fill(self._experiment_label, experiment.label)
-        if experiment.modality:
-            self.fill(self._experiment_modality, experiment.modality)
+
+    def enter_experiment_details(
+        self, *, label: str | None = None, modality: str | None = None
+    ) -> None:
+        if label is not None:
+            self.fill(self._experiment_label, label)
+        if modality is not None:
+            self.fill(self._experiment_modality, modality)
+
+    def submit_experiment_form(self) -> None:
         self.click(self._save_button)
 
+    def add_experiment(self, experiment: Experiment) -> None:
+        self.start_experiment_creation()
+        self.enter_experiment_details(label=experiment.label, modality=experiment.modality)
+        self.submit_experiment_form()
+
     def experiment_exists(self, experiment: Experiment) -> bool:
-        rows = self.elements(self._experiment_table_rows)
-        return any(experiment.label in row.text for row in rows)
+        rows = self.experiment_rows()
+        if experiment.modality:
+            return any(experiment.label in row and experiment.modality in row for row in rows)
+        return any(experiment.label in row for row in rows)
+
+    def experiment_rows(self) -> list[str]:
+        """Return the raw text contents of the experiment table rows."""
+
+        return [row.text for row in self.elements(self._experiment_table_rows)]
+
+    def experiment_count(self) -> int:
+        """Return the number of experiments currently displayed."""
+
+        return len(self.elements(self._experiment_table_rows))

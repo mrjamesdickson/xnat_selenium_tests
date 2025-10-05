@@ -1,6 +1,7 @@
 """Page object modelling the XNAT login screen."""
 from __future__ import annotations
 
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 
 from .base import BasePage
@@ -29,3 +30,12 @@ class LoginPage(BasePage):
 
     def error_message(self) -> str:
         return self.text_of(self._error_banner)
+
+    def is_displayed(self, *, timeout: int | None = None) -> bool:
+        """Return ``True`` when the login form is visible."""
+
+        try:
+            self.wait_for_visibility(self._username_input, timeout=timeout)
+            return True
+        except TimeoutException:
+            return False

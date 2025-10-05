@@ -30,14 +30,36 @@ class SubjectsPage(BasePage):
         self.visit(f"/app/action/DisplayItemAction/search_element/subject/search_field/PROJECT/search_value/{project_identifier}")
         self.wait_for_visibility(self._add_subject_button)
 
-    def add_subject(self, subject: Subject) -> None:
+    def start_subject_creation(self) -> None:
         self.click(self._add_subject_button)
         self.wait_for_visibility(self._subject_label)
-        self.fill(self._subject_label, subject.label)
-        if subject.species:
-            self.fill(self._subject_species, subject.species)
+
+    def enter_subject_details(self, *, label: str | None = None, species: str | None = None) -> None:
+        if label is not None:
+            self.fill(self._subject_label, label)
+        if species is not None:
+            self.fill(self._subject_species, species)
+
+    def submit_subject_form(self) -> None:
         self.click(self._save_subject)
 
+    def add_subject(self, subject: Subject) -> None:
+        self.start_subject_creation()
+        self.enter_subject_details(label=subject.label, species=subject.species)
+        self.submit_subject_form()
+
     def subject_exists(self, subject: Subject) -> bool:
-        rows = self.elements(self._subject_table_rows)
-        return any(subject.label in row.text for row in rows)
+        rows = self.subject_rows()
+        if subject.species:
+            return any(subject.label in row and subject.species in row for row in rows)
+        return any(subject.label in row for row in rows)
+
+    def subject_rows(self) -> list[str]:
+        """Return the raw text contents of the subject table rows."""
+
+        return [row.text for row in self.elements(self._subject_table_rows)]
+
+    def subject_count(self) -> int:
+        """Return the number of subjects currently displayed."""
+
+        return len(self.elements(self._subject_table_rows))

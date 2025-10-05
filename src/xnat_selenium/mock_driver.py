@@ -40,6 +40,8 @@ class _Project:
     identifier: str
     name: str
     description: str | None = None
+    aliases: tuple[str, ...] = ()
+    keywords: tuple[str, ...] = ()
 
 
 @dataclass
@@ -253,7 +255,16 @@ class MockWebDriver:
             return [
                 MockWebElement(
                     locator=locator,
-                    text_getter=lambda proj=proj: f"{proj.identifier} {proj.name}",
+                    text_getter=lambda proj=proj: " | ".join(
+                        filter(
+                            None,
+                            [
+                                proj.identifier,
+                                proj.name,
+                                proj.description,
+                            ],
+                        )
+                    ),
                 )
                 for proj in self._projects
             ]
@@ -261,14 +272,36 @@ class MockWebDriver:
             project_identifier = self._ui.current_project
             subjects = self._subjects.get(project_identifier or "", [])
             return [
-                MockWebElement(locator=locator, text_getter=lambda subj=subj: subj.label)
+                MockWebElement(
+                    locator=locator,
+                    text_getter=lambda subj=subj: " | ".join(
+                        filter(
+                            None,
+                            [
+                                subj.label,
+                                subj.species,
+                            ],
+                        )
+                    ),
+                )
                 for subj in subjects
             ]
         if page == "experiments" and locator == (By.CSS_SELECTOR, "table.experiment-list tbody tr"):
             key = (self._ui.current_project or "", self._ui.current_subject or "")
             experiments = self._experiments.get(key, [])
             return [
-                MockWebElement(locator=locator, text_getter=lambda exp=exp: exp.label)
+                MockWebElement(
+                    locator=locator,
+                    text_getter=lambda exp=exp: " | ".join(
+                        filter(
+                            None,
+                            [
+                                exp.label,
+                                exp.modality,
+                            ],
+                        )
+                    ),
+                )
                 for exp in experiments
             ]
         return []
@@ -462,6 +495,8 @@ class MockWebDriver:
             identifier=self._ui.project_identifier,
             name=self._ui.project_name,
             description=self._ui.project_description or None,
+            aliases=(),
+            keywords=(),
         )
         # prevent duplicate identifiers from creating multiple entries
         self._projects = [p for p in self._projects if p.identifier != project.identifier]

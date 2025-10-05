@@ -1,0 +1,27 @@
+comparators:
+  - type: Equals
+    elements:
+      - locator: //my/div[3]
+        value: happy
+      - locator: //my/div[4]
+        value: '3.00'
+      - locator:
+          type: xpath
+          value: //my/div[5]
+        value: cat
+      - locator:
+          type: id
+          value: summary
+        value: passed
+  - type: maxPercentTolerance
+    percent: 1.0
+    elements:
+      - locator: $summary_tbody/tr[$indexCache(Left-Pallidum)]/td[2]
+        value: 100000.0
+locatorCaches:
+  - id: indexCache
+    type: textIndexArray
+    locator: "//span[@id='full_summary']//tbody/tr/td[1]"
+    offset: 2
+locatorReplacements:
+  '$summary_tbody': "//span[@id='full_summary']//tbody"

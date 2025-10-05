@@ -53,6 +53,22 @@ be validated automatically.
    pytest -m e2e
    ```
 
+### Running without a real XNAT deployment
+
+When Docker or a browser stack is unavailable you can still exercise the
+page-objects and scenarios using the bundled in-process mock XNAT server. This
+mode keeps the tests runnable in CI sandboxes while continuing to validate the
+automation logic.
+
+```bash
+export XNAT_USE_MOCK=1
+pytest
+```
+
+The mock environment provides the default `admin` / `admin` credentials and
+behaves like a simplified version of the real UI for the flows covered by the
+suite.
+
 ## Running inside Docker
 
 A Docker image is provided to run the Selenium suite with Google Chrome in
@@ -96,12 +112,12 @@ repository inside `.xnat-test-env/` and proxy common Docker Compose commands.
    ./scripts/manage_xnat_test_env.sh up
    ```
 
-   The services will be accessible on `http://localhost:8080` with the default
+   The services will be accessible on `http://localhost` with the default
    credentials `admin` / `admin` once the containers finish booting.
 3. Point the Selenium tests at the local instance:
 
    ```bash
-   export XNAT_BASE_URL=http://localhost:8080
+   export XNAT_BASE_URL=http://localhost
    export XNAT_USERNAME=admin
    export XNAT_PASSWORD=admin
    pytest -m smoke
@@ -115,7 +131,17 @@ repository inside `.xnat-test-env/` and proxy common Docker Compose commands.
    ```
 
 Refer to the upstream repository for environment customization options such as
-port overrides or data persistence tweaks.
+data persistence tweaks. For a fully automated local run (start stack, wait for
+readiness, execute pytest, and tear the stack down) invoke the helper script:
+
+```
+./scripts/run_xnat_suite.sh
+```
+
+The script accepts optional overrides via environment variables, such as
+`XNAT_BASE_URL`, `XNAT_USERNAME`, `XNAT_PASSWORD`, `TEARDOWN_ON_EXIT=false`, or
+`WAIT_TIMEOUT=600`. When Docker is not available the helper automatically falls
+back to the mock environment described above so the Selenium suite still runs.
 
 ## Project structure
 

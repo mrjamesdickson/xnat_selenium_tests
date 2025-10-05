@@ -12,6 +12,7 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 from xnat_selenium.config import XnatConfig
+from xnat_selenium.mock_driver import MockWebDriver, is_mock_base_url
 from xnat_selenium.pages.dashboard import DashboardPage
 from xnat_selenium.pages.login import LoginPage
 
@@ -73,13 +74,20 @@ def _build_driver(browser: str, *, headless: bool, remote_url: str | None) -> we
 
 @pytest.fixture(scope="session")
 def driver(pytestconfig: pytest.Config, xnat_config: XnatConfig) -> Generator[webdriver.Remote, None, None]:
-    remote_url = pytestconfig.getoption("remote_url") or os.getenv("SELENIUM_REMOTE_URL")
-    try:
-        driver_instance = _build_driver(
-            pytestconfig.getoption("browser"), headless=xnat_config.headless, remote_url=remote_url
+    if is_mock_base_url(xnat_config.base_url):
+        driver_instance = MockWebDriver(
+            base_url=xnat_config.base_url,
+            username=xnat_config.username,
+            password=xnat_config.password,
         )
-    except WebDriverException as exc:  # pragma: no cover - exercised at runtime
-        pytest.skip(f"Unable to start Selenium driver: {exc}")
+    else:
+        remote_url = pytestconfig.getoption("remote_url") or os.getenv("SELENIUM_REMOTE_URL")
+        try:
+            driver_instance = _build_driver(
+                pytestconfig.getoption("browser"), headless=xnat_config.headless, remote_url=remote_url
+            )
+        except WebDriverException as exc:  # pragma: no cover - exercised at runtime
+            pytest.skip(f"Unable to start Selenium driver: {exc}")
     driver_instance.set_page_load_timeout(60)
     driver_instance.implicitly_wait(2)
     yield driver_instance

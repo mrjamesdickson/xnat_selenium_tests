@@ -74,6 +74,23 @@ suite.
 A Docker image is provided to run the Selenium suite with Google Chrome in
 headless mode without installing dependencies locally.
 
+### One-step execution
+
+To build the container and execute the full test suite in a single command,
+use the helper script:
+
+```bash
+./scripts/run_tests_in_docker.sh -m smoke
+```
+
+The script forwards common environment variables such as `XNAT_BASE_URL`,
+`XNAT_USERNAME`, `XNAT_PASSWORD`, proxy settings, and extra Pytest options into
+the container. Additional Docker options can be supplied through
+`DOCKER_RUN_EXTRA_ARGS`, while `DOCKER_BUILD_NO_CACHE=1` forces a clean image
+build.
+
+### Manual workflow
+
 1. Build the image:
 
    ```bash

@@ -34,25 +34,37 @@ class Project:
 class ProjectsPage(BasePage):
     """Interact with the project listing and creation screens."""
 
-    path = "/app/template/XDATScreen_manage_projects.vm"
+    path = "/"  # Modern XNAT shows projects on the home page
 
-    _create_button = (By.CSS_SELECTOR, "a#create-project, a[href*='CreateProject']")
-    _project_identifier = (By.NAME, "ID")
-    _project_name = (By.NAME, "name")
-    _project_description = (By.NAME, "description")
-    _save_button = (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']")
-    _project_table_rows = (By.CSS_SELECTOR, "table.project-list tbody tr")
-    _project_row_link = "a[href*='projectID=%s']"
+    # Updated selectors for modern XNAT UI
+    _new_menu = (By.CSS_SELECTOR, "a[href='#new']")
+    _create_button = (By.CSS_SELECTOR, "a[href*='add_xnat_projectData']")
+    _project_identifier = (By.NAME, "xnat:projectData/ID")
+    _project_name = (By.NAME, "xnat:projectData/name")
+    _project_description = (By.NAME, "xnat:projectData/description")
+    _save_button = (By.CSS_SELECTOR, "input[name='eventSubmit_doPerform'], input[value*='Create Project'], button[type='submit'], input[type='submit']")
+    _project_table_rows = (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id]")  # Modern XNAT uses data-id attributes
+    _project_row_link = "a[href*='%s']"
+    _projects_menu = (By.ID, "browse-projects-menu-item")
 
     def open(self) -> "ProjectsPage":
         self.visit(self.path)
-        self.wait_for_visibility(self._create_button)
+        # Check for presence since the menu may be hidden in a dropdown
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+        wait = WebDriverWait(self.driver, self.timeout)
+        wait.until(EC.presence_of_element_located(self._projects_menu))
         return self
 
     def wait_until_loaded(self, *, timeout: int | None = None) -> None:
         """Wait until the project listing has fully loaded."""
 
-        self.wait_for_visibility(self._create_button, timeout=timeout)
+        # Modern XNAT shows projects in dropdown menus on the home page
+        # Check for presence since the menu may be hidden in a dropdown
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+        wait = WebDriverWait(self.driver, timeout or self.timeout)
+        wait.until(EC.presence_of_element_located(self._projects_menu))
 
     def is_loaded(self, *, timeout: int | None = None) -> bool:
         """Return ``True`` when the project listing controls are visible."""
@@ -64,6 +76,8 @@ class ProjectsPage(BasePage):
             return False
 
     def start_project_creation(self) -> None:
+        # In modern XNAT, project creation is under the "New" menu
+        self.click(self._new_menu)
         self.click(self._create_button)
         self.wait_for_visibility(self._project_identifier)
 
@@ -87,6 +101,9 @@ class ProjectsPage(BasePage):
         """Submit the project creation form without additional validation."""
 
         self.click(self._save_button)
+        # Wait for either URL change (successful creation) or stay on form (validation error)
+        import time
+        time.sleep(2)  # Give time for any JavaScript processing and redirect
 
     def create_project(self, project: Project) -> None:
         self.start_project_creation()

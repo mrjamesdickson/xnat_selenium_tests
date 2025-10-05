@@ -20,20 +20,26 @@ class Experiment:
 class ExperimentsPage(BasePage):
     """Interact with experiments for a given subject."""
 
-    _add_experiment_button = (By.CSS_SELECTOR, "a[href*='AddExperiment'], button#create-session")
-    _experiment_label = (By.NAME, "label")
-    _experiment_modality = (By.NAME, "modality")
-    _save_button = (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']")
-    _experiment_table_rows = (By.CSS_SELECTOR, "table.experiment-list tbody tr")
+    _new_menu = (By.CSS_SELECTOR, "a[href='#new']")
+    _add_experiment_link = (By.CSS_SELECTOR, "a[href*='add_experiment'], a[href*='xdataction/edit'][href*='experiment']")
+    _experiment_label = (By.NAME, "xnat:mrSessionData/label")  # Most common experiment type
+    _experiment_modality = (By.NAME, "xnat:mrSessionData/modality")
+    _save_button = (By.CSS_SELECTOR, "input[name='eventSubmit_doInsert'], input[value*='Submit'], button[type='submit'], input[type='submit']")
+    _experiment_table_rows = (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr")
 
     def open(self, project_identifier: str, subject_label: str) -> None:
-        self.visit(
-            f"/app/action/DisplayItemAction/search_element/experiment/search_field/PROJECT/search_value/{project_identifier}?subject={subject_label}"
-        )
-        self.wait_for_visibility(self._add_experiment_button)
+        # Navigate to the subject page in modern XNAT
+        self.visit(f"/data/projects/{project_identifier}/subjects/{subject_label}")
+        # Wait for page to load - check for the New menu
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+        wait = WebDriverWait(self.driver, self.timeout)
+        wait.until(EC.presence_of_element_located(self._new_menu))
 
     def start_experiment_creation(self) -> None:
-        self.click(self._add_experiment_button)
+        # In modern XNAT, experiment creation is under the "New" menu
+        self.click(self._new_menu)
+        self.click(self._add_experiment_link)
         self.wait_for_visibility(self._experiment_label)
 
     def enter_experiment_details(

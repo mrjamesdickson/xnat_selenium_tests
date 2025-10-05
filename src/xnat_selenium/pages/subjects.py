@@ -20,18 +20,26 @@ class Subject:
 class SubjectsPage(BasePage):
     """Interact with the subject list within a project."""
 
-    _add_subject_button = (By.CSS_SELECTOR, "a[href*='AddSubject'], button#create-subject")
-    _subject_label = (By.NAME, "label")
-    _subject_species = (By.NAME, "species")
-    _save_subject = (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']")
-    _subject_table_rows = (By.CSS_SELECTOR, "table.subject-list tbody tr")
+    _new_menu = (By.CSS_SELECTOR, "a[href='#new']")
+    _add_subject_link = (By.CSS_SELECTOR, "a[href*='xdataction/edit/search_element/xnat%3AsubjectData']")
+    _subject_label = (By.NAME, "xnat:subjectData/label")
+    _subject_species = (By.NAME, "xnat:subjectData/demographics[@xsi:type=xnat:demographicData]/species")
+    _save_subject = (By.CSS_SELECTOR, "input[name='eventSubmit_doInsert'], input[value*='Submit'], button[type='submit'], input[type='submit']")
+    _subject_table_rows = (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr")
 
     def open(self, project_identifier: str) -> None:
-        self.visit(f"/app/action/DisplayItemAction/search_element/subject/search_field/PROJECT/search_value/{project_identifier}")
-        self.wait_for_visibility(self._add_subject_button)
+        # Navigate to the project page in modern XNAT
+        self.visit(f"/data/projects/{project_identifier}")
+        # Wait for page to load - check for the New menu
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+        wait = WebDriverWait(self.driver, self.timeout)
+        wait.until(EC.presence_of_element_located(self._new_menu))
 
     def start_subject_creation(self) -> None:
-        self.click(self._add_subject_button)
+        # In modern XNAT, subject creation is under the "New" menu
+        self.click(self._new_menu)
+        self.click(self._add_subject_link)
         self.wait_for_visibility(self._subject_label)
 
     def enter_subject_details(self, *, label: str | None = None, species: str | None = None) -> None:

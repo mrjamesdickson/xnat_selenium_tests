@@ -46,10 +46,23 @@ ENV CHROME_BIN=/usr/bin/google-chrome
 RUN set -eux; \
     CHROME_VERSION="$(${CHROME_BIN} --version | awk '{print $3}')"; \
     CHROME_MAJOR="${CHROME_VERSION%%.*}"; \
-    DRIVER_VERSION="$(wget -q -O - "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}")"; \
-    wget -q "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver-linux64.zip"; \
-    unzip chromedriver-linux64.zip -d /usr/local/bin/; \
-    rm chromedriver-linux64.zip; \
+    if [ "${CHROME_MAJOR}" -ge 115 ]; then \
+        wget -q -O /tmp/versions.json "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"; \
+        DRIVER_URL=$(grep -o "\"url\":\"https://[^\"]*chromedriver-linux64.zip\"" /tmp/versions.json | grep "/${CHROME_VERSION}/" | head -1 | cut -d'"' -f4); \
+        if [ -z "${DRIVER_URL}" ]; then \
+            DRIVER_URL=$(wget -q -O - "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_MAJOR}" | \
+                xargs -I {} echo "https://storage.googleapis.com/chrome-for-testing-public/{}/linux64/chromedriver-linux64.zip"); \
+        fi; \
+        wget -q "${DRIVER_URL}" -O /tmp/chromedriver-linux64.zip; \
+        unzip /tmp/chromedriver-linux64.zip -d /tmp/; \
+        mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver; \
+        rm -rf /tmp/chromedriver-linux64.zip /tmp/chromedriver-linux64 /tmp/versions.json; \
+    else \
+        DRIVER_VERSION="$(wget -q -O - "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}")"; \
+        wget -q "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver-linux64.zip"; \
+        unzip chromedriver-linux64.zip -d /usr/local/bin/; \
+        rm chromedriver-linux64.zip; \
+    fi; \
     chmod +x /usr/local/bin/chromedriver
 
 ENV CHROMEDRIVER=/usr/local/bin/chromedriver

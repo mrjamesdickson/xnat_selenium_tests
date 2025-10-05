@@ -87,7 +87,14 @@ ensure_docker() {
 
 run_compose() {
     ensure_docker
-    (cd "$TARGET_DIR" && docker compose "$@")
+    if docker compose version >/dev/null 2>&1; then
+        (cd "$TARGET_DIR" && docker compose "$@")
+    elif command -v docker-compose >/dev/null 2>&1; then
+        (cd "$TARGET_DIR" && docker-compose "$@")
+    else
+        echo "Neither 'docker compose' nor 'docker-compose' is available." >&2
+        exit 1
+    fi
 }
 
 cmd=${1:-help}

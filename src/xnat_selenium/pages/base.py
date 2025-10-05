@@ -80,10 +80,22 @@ class BasePage:
         element.click()
 
     def fill(self, locator: Locator, value: str, *, clear: bool = True) -> None:
+        from selenium.common.exceptions import InvalidElementStateException
+        from selenium.webdriver.common.keys import Keys
+
         element = self.wait_for_visibility(locator)
         LOGGER.debug("Typing in element %s", locator)
         if clear:
-            element.clear()
+            try:
+                element.clear()
+            except InvalidElementStateException:
+                # If clear() fails, try selecting all and deleting
+                try:
+                    element.send_keys(Keys.CONTROL + "a")
+                    element.send_keys(Keys.DELETE)
+                except Exception:
+                    # If that also fails, just proceed without clearing
+                    LOGGER.debug("Unable to clear element %s, proceeding without clearing", locator)
         element.send_keys(value)
 
     def text_of(self, locator: Locator) -> str:

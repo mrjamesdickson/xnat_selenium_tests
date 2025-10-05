@@ -13,14 +13,17 @@ class LoginPage(BasePage):
     # The login view can be reached via ``/`` or ``/app/template/Login.vm``.
     path = "/app/template/Login.vm"
 
-    _username_input = (By.NAME, "login")
+    _username_input = (By.CSS_SELECTOR, "input[name='login'], input[name='username']")
     _password_input = (By.NAME, "password")
-    _submit_button = (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']")
-    _error_banner = (By.CSS_SELECTOR, ".alert-error, .message-error, .error")
+    _submit_button = (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit'], button#loginButton")
+    _error_banner = (By.CSS_SELECTOR, ".message, .alert-error, .message-error, .error")
 
     def open(self) -> "LoginPage":
         self.visit(self.path)
-        self.wait_for_visibility(self._username_input)
+        # XNAT redirects logged-in users away from the login page.
+        # Only wait for the username input if we're actually on the login page.
+        if "/Login" in self.driver.current_url or "login" in self.driver.current_url.lower():
+            self.wait_for_visibility(self._username_input)
         return self
 
     def login(self, username: str, password: str) -> None:
@@ -29,7 +32,28 @@ class LoginPage(BasePage):
         self.click(self._submit_button)
 
     def error_message(self) -> str:
-        return self.text_of(self._error_banner)
+        import time
+        from selenium.common.exceptions import StaleElementReferenceException
+        try:
+            return self.text_of(self._error_banner)
+        except (TimeoutException, StaleElementReferenceException):
+            # If there's no error banner or stale element, wait and retry once
+            time.sleep(1)
+            try:
+                # Try to find the error banner again after page reload
+                return self.text_of(self._error_banner)
+            except (TimeoutException, StaleElementReferenceException):
+                # If still no error banner, check if we're still on the login page
+                # (which would indicate form validation prevented submission)
+                if "/Login" in self.driver.current_url or "login" in self.driver.current_url.lower():
+                    # Still on login page - check if password field is empty
+                    try:
+                        password_field = self.driver.find_element(By.NAME, "password")
+                        if not password_field.get_attribute("value"):
+                            return "Form validation error (required field empty)"
+                    except:
+                        pass
+                return ""
 
     def is_displayed(self, *, timeout: int | None = None) -> bool:
         """Return ``True`` when the login form is visible."""

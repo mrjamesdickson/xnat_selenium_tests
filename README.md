@@ -19,11 +19,16 @@ be validated automatically.
 
 ## Getting started
 
-1. Install dependencies (Python 3.10+):
+1. Create the local virtual environment (Python 3.10+) and install the
+   project dependencies:
 
    ```bash
-   pip install -e .
+   ./scripts/setup_venv.sh
    ```
+
+   The script provisions `.venv/`, upgrades `pip`, and installs the package in
+   editable mode so that subsequent changes to the test suite are immediately
+   available when the environment is activated.
 
 2. Provide credentials and connection details for the target XNAT environment
    using environment variables or Pytest command line flags:

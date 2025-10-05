@@ -82,6 +82,41 @@ headless mode without installing dependencies locally.
    docker run --rm -it --entrypoint /bin/bash xnat-selenium-tests
    ```
 
+## Local XNAT test environment
+
+Spin up a disposable XNAT instance using the
+[xnat-docker-compose](https://github.com/NrgXnat/xnat-docker-compose) project.
+The helper script in `scripts/manage_xnat_test_env.sh` will clone or update that
+repository inside `.xnat-test-env/` and proxy common Docker Compose commands.
+
+1. Ensure Docker and Docker Compose are installed locally.
+2. Start the stack:
+
+   ```bash
+   ./scripts/manage_xnat_test_env.sh up
+   ```
+
+   The services will be accessible on `http://localhost:8080` with the default
+   credentials `admin` / `admin` once the containers finish booting.
+3. Point the Selenium tests at the local instance:
+
+   ```bash
+   export XNAT_BASE_URL=http://localhost:8080
+   export XNAT_USERNAME=admin
+   export XNAT_PASSWORD=admin
+   pytest -m smoke
+   ```
+
+4. When finished, stop or tear down the environment:
+
+   ```bash
+   ./scripts/manage_xnat_test_env.sh down    # stop containers
+   ./scripts/manage_xnat_test_env.sh reset   # stop and remove volumes
+   ```
+
+Refer to the upstream repository for environment customization options such as
+port overrides or data persistence tweaks.
+
 ## Project structure
 
 ```

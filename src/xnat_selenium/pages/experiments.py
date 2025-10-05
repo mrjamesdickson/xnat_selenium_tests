@@ -7,6 +7,7 @@ from typing import Optional
 from selenium.webdriver.common.by import By
 
 from .base import BasePage
+from xnat_selenium.mock_driver import is_mock_base_url
 
 
 @dataclass
@@ -28,13 +29,16 @@ class ExperimentsPage(BasePage):
     _experiment_table_rows = (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr")
 
     def open(self, project_identifier: str, subject_label: str) -> None:
-        # Navigate to the subject page in modern XNAT
-        self.visit(f"/data/projects/{project_identifier}/subjects/{subject_label}")
-        # Wait for page to load - check for the New menu
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-        wait = WebDriverWait(self.driver, self.timeout)
-        wait.until(EC.presence_of_element_located(self._new_menu))
+        if is_mock_base_url(self.base_url):
+            self.visit(
+                f"/app/action/DisplayItemAction/search_element/experiment/{project_identifier}?subject={subject_label}"
+            )
+        else:
+            self.visit(f"/data/projects/{project_identifier}/subjects/{subject_label}")
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.support.ui import WebDriverWait
+            wait = WebDriverWait(self.driver, self.timeout)
+            wait.until(EC.presence_of_element_located(self._new_menu))
 
     def start_experiment_creation(self) -> None:
         # In modern XNAT, experiment creation is under the "New" menu

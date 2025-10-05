@@ -1,2 +1,9 @@
 # Local test environment assets
 .xnat-test-env/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+
+# Packaging metadata
+*.egg-info/

@@ -8,6 +8,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 
 from .base import BasePage
+from xnat_selenium.mock_driver import is_mock_base_url
 
 
 @dataclass
@@ -48,12 +49,14 @@ class ProjectsPage(BasePage):
     _projects_menu = (By.ID, "browse-projects-menu-item")
 
     def open(self) -> "ProjectsPage":
-        self.visit(self.path)
-        # Check for presence since the menu may be hidden in a dropdown
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-        wait = WebDriverWait(self.driver, self.timeout)
-        wait.until(EC.presence_of_element_located(self._projects_menu))
+        if is_mock_base_url(self.base_url):
+            self.visit("/app/template/XDATScreen_manage_projects.vm")
+        else:
+            self.visit(self.path)
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.support.ui import WebDriverWait
+            wait = WebDriverWait(self.driver, self.timeout)
+            wait.until(EC.presence_of_element_located(self._projects_menu))
         return self
 
     def wait_until_loaded(self, *, timeout: int | None = None) -> None:
@@ -61,6 +64,10 @@ class ProjectsPage(BasePage):
 
         # Modern XNAT shows projects in dropdown menus on the home page
         # Check for presence since the menu may be hidden in a dropdown
+        if is_mock_base_url(self.base_url):
+            # Ensure the project creation trigger is available in the mock UI
+            self.wait_for_visibility((By.CSS_SELECTOR, "a#create-project, a[href*='CreateProject']"))
+            return
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
         wait = WebDriverWait(self.driver, timeout or self.timeout)

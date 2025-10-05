@@ -1,4 +1,4 @@
-# XNAT Selenium Test Suite
+# XNAT Selenium Test Suite (work in progress)
 
 End-to-end Selenium tests that exercise key workflows in an XNAT deployment. The
 suite focuses on authentication, project management, subject onboarding, and

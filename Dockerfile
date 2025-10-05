@@ -10,6 +10,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         gnupg \
+        unzip \
         wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,6 +41,18 @@ RUN wget -q -O /usr/share/keyrings/google-linux-signing-key.gpg https://dl.googl
     && rm -rf /var/lib/apt/lists/*
 
 ENV CHROME_BIN=/usr/bin/google-chrome
+
+# Install a ChromeDriver build that matches the installed Chrome version.
+RUN set -eux; \
+    CHROME_VERSION="$(${CHROME_BIN} --version | awk '{print $3}')"; \
+    CHROME_MAJOR="${CHROME_VERSION%%.*}"; \
+    DRIVER_VERSION="$(wget -q -O - "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}")"; \
+    wget -q "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver-linux64.zip"; \
+    unzip chromedriver-linux64.zip -d /usr/local/bin/; \
+    rm chromedriver-linux64.zip; \
+    chmod +x /usr/local/bin/chromedriver
+
+ENV CHROMEDRIVER=/usr/local/bin/chromedriver
 
 WORKDIR /app
 

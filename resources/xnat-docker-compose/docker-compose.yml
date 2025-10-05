@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: xnat
+      POSTGRES_USER: xnat
+      POSTGRES_PASSWORD: xnat
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  cache:
+    image: redis:6
+    restart: unless-stopped
+  xnat:
+    image: xnat/xnat-web:1.8.10
+    depends_on:
+      - db
+      - cache
+    ports:
+      - "80:8080"
+    environment:
+      XNAT_ROOT: /data/xnat
+      XNAT_HOME: /data/xnat/home
+      XNAT_DB_HOST: db
+      XNAT_DB_PORT: "5432"
+      XNAT_DB_NAME: xnat
+      XNAT_DB_USER: xnat
+      XNAT_DB_PASSWORD: xnat
+      XNAT_DB_SCHEMA: public
+      XNAT_REDIS_HOST: cache
+      XNAT_REDIS_PORT: "6379"
+      XNAT_SMTP_ENABLED: "false"
+      XNAT_EMAIL_CONFIG__ENABLED: "false"
+    restart: unless-stopped
+    volumes:
+      - xnat-home:/data/xnat/home
+      - xnat-archive:/data/xnat/archive
+      - xnat-build:/data/xnat/build
+      - xnat-plugins:/data/xnat/plugins
+
+volumes:
+  postgres-data:
+  xnat-home:
+  xnat-archive:
+  xnat-build:
+  xnat-plugins:

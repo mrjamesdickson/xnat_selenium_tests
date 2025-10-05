@@ -37,6 +37,16 @@ def xnat_config(pytestconfig: pytest.Config) -> XnatConfig:
             headless=not pytestconfig.getoption("headed"),
         )
     except ValueError as exc:
+        # Default to the in-process mock driver when configuration is missing so
+        # the suite can exercise the page objects without requiring a live XNAT
+        # deployment or explicit CLI flags.
+        if "base URL" in str(exc):
+            return XnatConfig.from_env(
+                base_url="mock://xnat",
+                username=pytestconfig.getoption("username") or "admin",
+                password=pytestconfig.getoption("password") or "admin",
+                headless=not pytestconfig.getoption("headed"),
+            )
         pytest.skip(str(exc))
 
 

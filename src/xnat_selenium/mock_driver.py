@@ -93,6 +93,7 @@ class MockWebElement:
         on_send_keys: Optional[Callable[[str], None]] = None,
         on_clear: Optional[Callable[[], None]] = None,
         is_displayed_getter: Optional[Callable[[], bool]] = None,
+        attributes: Optional[Dict[str, str]] = None,
     ) -> None:
         self._locator = locator
         self._text_getter = text_getter
@@ -101,6 +102,7 @@ class MockWebElement:
         self._on_clear = on_clear
         self._value: str = ""
         self._is_displayed_getter = is_displayed_getter
+        self._attributes = {k.lower(): v for k, v in (attributes or {}).items()}
 
     # ------------------------------------------------------------------
     # Selenium compatibility helpers
@@ -128,6 +130,16 @@ class MockWebElement:
 
     def is_enabled(self) -> bool:
         return True
+
+    def get_attribute(self, name: str) -> str:
+        key = name.lower()
+        if key == "value":
+            return self._value
+        if key in {"textcontent", "innertext"}:
+            return self.text
+        if key == "validationmessage":
+            return self._attributes.get(key, "")
+        return self._attributes.get(key, "")
 
     @property
     def text(self) -> str:
@@ -159,7 +171,14 @@ class MockWebDriver:
         parsed = urlparse(url)
         path = parsed.path or "/"
         self._ui.current_url = url
-        if path in {"/", "/app/template/Login.vm"}:
+        if path == "/":
+            if self._ui.logged_in_user:
+                self._ui.current_page = "dashboard"
+                self._ui.current_url = f"{self.base_url}/"
+            else:
+                self._navigate_to_login()
+            return
+        if path == "/app/template/Login.vm":
             self._navigate_to_login()
             return
         if path == "/app/template/XDATScreen_select_project.vm":
@@ -191,6 +210,25 @@ class MockWebDriver:
             self._ui.experiment_form_visible = False
             self._experiments.setdefault((project_identifier, subject_label), [])
             return
+        if path.startswith("/data/projects"):
+            self._require_authentication()
+            parts = [part for part in path.strip("/").split("/") if part]
+            # Expect paths like /data/projects/<project>[/subjects/<subject>]
+            if len(parts) >= 3 and parts[0] == "data" and parts[1] == "projects":
+                project_identifier = parts[2]
+                self._subjects.setdefault(project_identifier, [])
+                if len(parts) >= 5 and parts[3] == "subjects":
+                    subject_label = parts[4]
+                    self._ui.current_page = "experiments"
+                    self._ui.current_project = project_identifier
+                    self._ui.current_subject = subject_label
+                    self._ui.experiment_form_visible = False
+                    self._experiments.setdefault((project_identifier, subject_label), [])
+                else:
+                    self._ui.current_page = "subjects"
+                    self._ui.current_project = project_identifier
+                    self._ui.subject_form_visible = False
+                return
         raise NoSuchElementException(f"Unsupported navigation path: {path}")
 
     def find_element(self, by: str, value: str) -> MockWebElement:
@@ -239,7 +277,10 @@ class MockWebDriver:
     def _shared_authenticated_element(self, locator: Locator) -> MockWebElement | None:
         if not self._ui.logged_in_user:
             return None
-        if locator == (By.CSS_SELECTOR, "#user-box, .user-menu"):
+        user_menu_locators = {
+            (By.CSS_SELECTOR, "#user-box, .user-menu"),
+        }
+        if locator in user_menu_locators:
             return MockWebElement(locator=locator, on_click=self._open_user_menu)
         if locator == (By.CSS_SELECTOR, "a[href*='Logout']"):
             return MockWebElement(
@@ -247,11 +288,20 @@ class MockWebDriver:
                 on_click=self._logout,
                 is_displayed_getter=lambda: self._ui.user_menu_open,
             )
+        if locator == (By.ID, "logout_user"):
+            return MockWebElement(locator=locator, on_click=self._logout)
+        if locator == (By.ID, "browse-projects-menu-item"):
+            return MockWebElement(locator=locator)
         return None
 
     def _resolve_elements(self, locator: Locator) -> List[MockWebElement]:
         page = self._ui.current_page
-        if page == "projects" and locator == (By.CSS_SELECTOR, "table.project-list tbody tr"):
+        project_row_locators = {
+            (By.CSS_SELECTOR, "table.project-list tbody tr"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id]"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr"),
+        }
+        if page == "projects" and locator in project_row_locators:
             return [
                 MockWebElement(
                     locator=locator,
@@ -268,9 +318,14 @@ class MockWebDriver:
                 )
                 for proj in self._projects
             ]
-        if page == "subjects" and locator == (By.CSS_SELECTOR, "table.subject-list tbody tr"):
-            project_identifier = self._ui.current_project
-            subjects = self._subjects.get(project_identifier or "", [])
+        subject_row_locators = {
+            (By.CSS_SELECTOR, "table.subject-list tbody tr"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id]"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr"),
+        }
+        if page == "subjects" and locator in subject_row_locators:
+            project_identifier = self._ui.current_project or ""
+            subjects = self._subjects.get(project_identifier, [])
             return [
                 MockWebElement(
                     locator=locator,
@@ -286,7 +341,12 @@ class MockWebDriver:
                 )
                 for subj in subjects
             ]
-        if page == "experiments" and locator == (By.CSS_SELECTOR, "table.experiment-list tbody tr"):
+        experiment_row_locators = {
+            (By.CSS_SELECTOR, "table.experiment-list tbody tr"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id]"),
+            (By.CSS_SELECTOR, "table.xnat-table tbody tr[data-id], table tbody tr"),
+        }
+        if page == "experiments" and locator in experiment_row_locators:
             key = (self._ui.current_project or "", self._ui.current_subject or "")
             experiments = self._experiments.get(key, [])
             return [
@@ -310,7 +370,11 @@ class MockWebDriver:
     # Page specific element factories
     # ------------------------------------------------------------------
     def _login_element(self, locator: Locator) -> MockWebElement | None:
-        if locator == (By.NAME, "login"):
+        username_locators = {
+            (By.NAME, "login"),
+            (By.CSS_SELECTOR, "input[name='login'], input[name='username']"),
+        }
+        if locator in username_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_login_username(""),
@@ -322,9 +386,21 @@ class MockWebDriver:
                 on_clear=lambda: self._set_login_password(""),
                 on_send_keys=lambda value: self._set_login_password(value),
             )
-        if locator == (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"):
+        submit_locators = {
+            (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"),
+            (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit'], button#loginButton"),
+        }
+        if locator in submit_locators:
             return MockWebElement(locator=locator, on_click=self._submit_login)
-        if locator == (By.CSS_SELECTOR, ".alert-error, .message-error, .error"):
+        error_locators = {
+            (By.CSS_SELECTOR, ".alert-error, .message-error, .error"),
+            (By.CSS_SELECTOR, ".message, .alert-error, .message-error, .error"),
+            (By.CSS_SELECTOR, ".alert.alert-danger, .alert.alert-error, .xnat-alert-error"),
+            (By.ID, "loginMessage"),
+            (By.ID, "login-error"),
+            (By.CSS_SELECTOR, "[role='alert'], [data-testid='login-error']"),
+        }
+        if locator in error_locators:
             return MockWebElement(
                 locator=locator,
                 text_getter=lambda: self._ui.login_error,
@@ -333,48 +409,70 @@ class MockWebDriver:
         return None
 
     def _dashboard_element(self, locator: Locator) -> MockWebElement | None:
-        if locator == (By.CSS_SELECTOR, "#page-content h1, .welcome-message"):
+        welcome_locators = {
+            (By.CSS_SELECTOR, "#page-content h1, .welcome-message"),
+            (By.CSS_SELECTOR, "#main_nav, body"),
+        }
+        if locator in welcome_locators:
             return MockWebElement(
                 locator=locator,
                 text_getter=lambda: f"Welcome, {self._ui.logged_in_user}",
             )
         if locator == (By.CSS_SELECTOR, "a[href*='projects'], a[href*='SelectProject']"):
             return MockWebElement(locator=locator, on_click=self._open_projects)
-        if locator == (By.CSS_SELECTOR, "#user-box, .user-menu"):
-            return MockWebElement(locator=locator, on_click=self._open_user_menu)
-        if locator == (By.CSS_SELECTOR, "a[href*='Logout']"):
-            return MockWebElement(
-                locator=locator,
-                on_click=self._logout,
-                is_displayed_getter=lambda: self._ui.user_menu_open,
-            )
+        if locator == (By.CSS_SELECTOR, "a[href='#new']"):
+            return MockWebElement(locator=locator)
+        if locator == (By.CSS_SELECTOR, "a[href*='add_xnat_projectData']"):
+            return MockWebElement(locator=locator, on_click=self._show_project_form)
         return None
 
     def _projects_element(self, locator: Locator) -> MockWebElement | None:
-        if locator == (By.CSS_SELECTOR, "a#create-project, a[href*='CreateProject']"):
+        create_locators = {
+            (By.CSS_SELECTOR, "a#create-project, a[href*='CreateProject']"),
+            (By.CSS_SELECTOR, "a[href*='add_xnat_projectData']"),
+        }
+        if locator in create_locators:
             return MockWebElement(locator=locator, on_click=self._show_project_form)
-        if locator == (By.NAME, "ID"):
+        if locator == (By.CSS_SELECTOR, "a[href='#new']"):
+            return MockWebElement(locator=locator)
+        identifier_locators = {
+            (By.NAME, "ID"),
+            (By.NAME, "xnat:projectData/ID"),
+        }
+        if locator in identifier_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_project_identifier(""),
                 on_send_keys=lambda value: self._set_project_identifier(value),
                 is_displayed_getter=lambda: self._ui.project_form_visible,
             )
-        if locator == (By.NAME, "name"):
+        name_locators = {
+            (By.NAME, "name"),
+            (By.NAME, "xnat:projectData/name"),
+        }
+        if locator in name_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_project_name(""),
                 on_send_keys=lambda value: self._set_project_name(value),
                 is_displayed_getter=lambda: self._ui.project_form_visible,
             )
-        if locator == (By.NAME, "description"):
+        description_locators = {
+            (By.NAME, "description"),
+            (By.NAME, "xnat:projectData/description"),
+        }
+        if locator in description_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_project_description(""),
                 on_send_keys=lambda value: self._set_project_description(value),
                 is_displayed_getter=lambda: self._ui.project_form_visible,
             )
-        if locator == (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"):
+        submit_locators = {
+            (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"),
+            (By.CSS_SELECTOR, "input[name='eventSubmit_doPerform'], input[value*='Create Project'], button[type='submit'], input[type='submit']"),
+        }
+        if locator in submit_locators:
             return MockWebElement(
                 locator=locator,
                 on_click=self._submit_project,
@@ -383,23 +481,41 @@ class MockWebDriver:
         return None
 
     def _subjects_element(self, locator: Locator) -> MockWebElement | None:
-        if locator == (By.CSS_SELECTOR, "a[href*='AddSubject'], button#create-subject"):
+        add_subject_locators = {
+            (By.CSS_SELECTOR, "a[href*='AddSubject'], button#create-subject"),
+            (By.CSS_SELECTOR, "a[href*='xdataction/edit/search_element/xnat%3AsubjectData']"),
+        }
+        if locator in add_subject_locators:
             return MockWebElement(locator=locator, on_click=self._show_subject_form)
-        if locator == (By.NAME, "label"):
+        if locator == (By.CSS_SELECTOR, "a[href='#new']"):
+            return MockWebElement(locator=locator)
+        label_locators = {
+            (By.NAME, "label"),
+            (By.NAME, "xnat:subjectData/label"),
+        }
+        if locator in label_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_subject_label(""),
                 on_send_keys=lambda value: self._set_subject_label(value),
                 is_displayed_getter=lambda: self._ui.subject_form_visible,
             )
-        if locator == (By.NAME, "species"):
+        species_locators = {
+            (By.NAME, "species"),
+            (By.NAME, "xnat:subjectData/demographics[@xsi:type=xnat:demographicData]/species"),
+        }
+        if locator in species_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_subject_species(""),
                 on_send_keys=lambda value: self._set_subject_species(value),
                 is_displayed_getter=lambda: self._ui.subject_form_visible,
             )
-        if locator == (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"):
+        submit_locators = {
+            (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"),
+            (By.CSS_SELECTOR, "input[name='eventSubmit_doInsert'], input[value*='Submit'], button[type='submit'], input[type='submit']"),
+        }
+        if locator in submit_locators:
             return MockWebElement(
                 locator=locator,
                 on_click=self._submit_subject,
@@ -408,23 +524,41 @@ class MockWebDriver:
         return None
 
     def _experiments_element(self, locator: Locator) -> MockWebElement | None:
-        if locator == (By.CSS_SELECTOR, "a[href*='AddExperiment'], button#create-session"):
+        add_experiment_locators = {
+            (By.CSS_SELECTOR, "a[href*='AddExperiment'], button#create-session"),
+            (By.CSS_SELECTOR, "a[href*='add_experiment'], a[href*='xdataction/edit'][href*='experiment']"),
+        }
+        if locator in add_experiment_locators:
             return MockWebElement(locator=locator, on_click=self._show_experiment_form)
-        if locator == (By.NAME, "label"):
+        if locator == (By.CSS_SELECTOR, "a[href='#new']"):
+            return MockWebElement(locator=locator)
+        label_locators = {
+            (By.NAME, "label"),
+            (By.NAME, "xnat:mrSessionData/label"),
+        }
+        if locator in label_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_experiment_label(""),
                 on_send_keys=lambda value: self._set_experiment_label(value),
                 is_displayed_getter=lambda: self._ui.experiment_form_visible,
             )
-        if locator == (By.NAME, "modality"):
+        modality_locators = {
+            (By.NAME, "modality"),
+            (By.NAME, "xnat:mrSessionData/modality"),
+        }
+        if locator in modality_locators:
             return MockWebElement(
                 locator=locator,
                 on_clear=lambda: self._set_experiment_modality(""),
                 on_send_keys=lambda value: self._set_experiment_modality(value),
                 is_displayed_getter=lambda: self._ui.experiment_form_visible,
             )
-        if locator == (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"):
+        submit_locators = {
+            (By.CSS_SELECTOR, "form button[type='submit'], form input[type='submit']"),
+            (By.CSS_SELECTOR, "input[name='eventSubmit_doInsert'], input[value*='Submit'], button[type='submit'], input[type='submit']"),
+        }
+        if locator in submit_locators:
             return MockWebElement(
                 locator=locator,
                 on_click=self._submit_experiment,

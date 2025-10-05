@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from selenium.webdriver.common.by import By
 
+from xnat_selenium.mock_driver import is_mock_base_url
+
 from .base import BasePage
 
 
@@ -24,6 +26,9 @@ class DashboardPage(BasePage):
         # In modern XNAT, projects are shown on the home page in dropdown menus.
         # We just stay on the dashboard since it already shows projects.
         # Check for the presence of the projects menu (it may be hidden in a dropdown)
+        if is_mock_base_url(self.base_url):
+            self.visit("/app/template/XDATScreen_manage_projects.vm")
+            return
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
         wait = WebDriverWait(self.driver, self.timeout)

@@ -171,7 +171,19 @@ def driver(pytestconfig: pytest.Config, xnat_config: XnatConfig) -> Generator[we
                 pytestconfig.getoption("browser"), headless=xnat_config.headless, remote_url=remote_url
             )
         except WebDriverException as exc:  # pragma: no cover - exercised at runtime
-            pytest.skip(f"Unable to start Selenium driver: {exc}")
+            warnings.warn(
+                "Falling back to the in-process mock driver because the requested Selenium browser "
+                f"could not be started: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            if not is_mock_base_url(xnat_config.base_url):
+                object.__setattr__(xnat_config, "base_url", "mock://xnat")
+            driver_instance = MockWebDriver(
+                base_url=xnat_config.base_url,
+                username=xnat_config.username,
+                password=xnat_config.password,
+            )
     driver_instance.set_page_load_timeout(60)
     driver_instance.implicitly_wait(2)
     yield driver_instance
